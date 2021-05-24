@@ -1,0 +1,61 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: operator-cert-validate
+spec:
+  params:
+    - name: bundle_path
+    - name: organization
+      # TODO Remove this default. It should be specified by the pipeline
+      default: redhat-marketplace
+    - name: pyxis_url
+      default: https://catalog.redhat.com/api/containers
+  results:
+    - name: package_name
+    - name: bundle_version
+    - name: bundle_ocp_version_range
+    - name: supports_ocp_4_5
+    - name: supports_ocp_4_6
+    - name: supports_ocp_4_7
+    - name: supports_ocp_4_8
+  workspaces:
+    - name: source
+  steps:
+    - name: verify-openshift-versions
+      image: registry.access.redhat.com/ubi8/python-38
+      workingDir: $(workspaces.source.path)
+      script: |
+        #! /usr/bin/env bash
+        set -xe
+
+        # TODO: Use a trusted image with preinstalled dependencies
+        pip install yq
+        mkdir "$HOME/bin"
+        curl -L -o "$HOME/bin/jq" https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+        chmod +x "$HOME/bin/jq"
+        export PATH="$PATH:$HOME/bin"
+
+        BUNDLE_PATH=$(realpath $(params.bundle_path))
+
+        # Store package name and bundle version for other tasks
+        echo -n $BUNDLE_PATH | rev | cut -d '/' -f 2 | tr -d $'\n' | rev | tee $(results.package_name.path)
+        echo -n $BUNDLE_PATH | rev | cut -d '/' -f 1 | tr -d $'\n' | rev | tee $(results.bundle_version.path)
+
+        # Get the targetted OCP version range
+        ANNOTATIONS_PATH="$BUNDLE_PATH/metadata/annotations.yaml"
+        OCP_VERSION_RANGE=$(cat $ANNOTATIONS_PATH | yq -r '.annotations."com.redhat.openshift.versions"')
+        echo $OCP_VERSION_RANGE | tee $(results.bundle_ocp_version_range.path)
+
+        # Find all the indices matching the version range
+        # This should also indirectly validate the format of the OCP version range
+        curl -L -o indices.json \
+          "$(params.pyxis_url)/v1/operators/indices?organization=$(params.organization)&ocp_versions_range=$OCP_VERSION_RANGE"
+
+        # Determine which OCP versions this bundle supports
+        # The -j switch is used to avoid newlines in the result which can
+        # make them unfriendly to use and debug in a whenCondition.
+        jq -j 'any(.data[]; .ocp_version == "4.5")' indices.json > $(results.supports_ocp_4_5.path)
+        jq -j 'any(.data[]; .ocp_version == "4.6")' indices.json > $(results.supports_ocp_4_6.path)
+        jq -j 'any(.data[]; .ocp_version == "4.7")' indices.json > $(results.supports_ocp_4_7.path)
+        jq -j 'any(.data[]; .ocp_version == "4.8")' indices.json > $(results.supports_ocp_4_8.path)

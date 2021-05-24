@@ -1,0 +1,101 @@
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  name: operator-cert-github-listener
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: github-listener
+      interceptors:
+        - cel:
+            filter: >-
+              (
+                header.match("X-GitHub-Event", "pull_request")
+                && body.action in ["opened", "reopened", "synchronize"]
+                && body.pull_request.base.ref == "master"
+              )
+      bindings:
+        - ref: operator-cert-trigger-binding
+      template:
+        name: operator-cert-trigger-template
+
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: operator-cert-trigger-binding
+spec:
+  params:
+    - name: git_repo_url
+      value: $(body.repository.html_url)
+    - name: git_refspec
+      value: "refs/pull/$(body.pull_request.number)/head"
+    - name: git_head_revision
+      value: $(body.pull_request.head.sha)
+    - name: git_base_revision
+      value: $(body.pull_request.base.sha)
+    - name: github_username
+      value: $(body.pull_request.user.login)
+    - name: github_pull_request_title
+      value: $(body.pull_request.title)
+    - name: github_pull_request_url
+      value: $(body.pull_request.html_url)
+
+---
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  name: operator-cert-trigger-template
+spec:
+  params:
+    - name: git_repo_url
+    - name: git_refspec
+    - name: git_head_revision
+    - name: git_base_revision
+    - name: github_username
+    - name: github_pull_request_title
+    - name: github_pull_request_url
+    - name: privileged_sa
+      default: generate-index-sa
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        generateName: operator-cert-pipeline-run-
+      spec:
+        pipelineRef:
+          name: operator-cert-pipeline
+        serviceAccountNames:
+          - taskName: generate-index-4-5
+            serviceAccountName: $(tt.params.privileged_sa)
+          - taskName: generate-index-4-6
+            serviceAccountName: $(tt.params.privileged_sa)
+          - taskName: generate-index-4-7
+            serviceAccountName: $(tt.params.privileged_sa)
+          - taskName: generate-index-4-8
+            serviceAccountName: $(tt.params.privileged_sa)
+        params:
+          - name: git_repo_url
+            value: $(tt.params.git_repo_url)
+          - name: git_refspec
+            value: $(tt.params.git_refspec)
+          - name: git_head_revision
+            value: $(tt.params.git_head_revision)
+          - name: git_base_revision
+            value: $(tt.params.git_base_revision)
+          - name: github_username
+            value: $(tt.params.github_username)
+          - name: github_pull_request_title
+            value: $(tt.params.github_pull_request_title)
+          - name: github_pull_request_url
+            value: $(tt.params.github_pull_request_url)
+        workspaces:
+          - name: pipeline
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: 100Mi

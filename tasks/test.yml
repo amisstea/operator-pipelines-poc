@@ -1,0 +1,30 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: operator-cert-test
+spec:
+  params:
+    - name: redhat
+      description: Include tests which require access to Red Hat's internal
+        network.
+      default: "false"
+    - name: offline
+      description: Exclude tests which require an active connection to the
+        internet.
+      default: "false"
+  results:
+    - name: status
+      description: passed, failed, errored, skipped, etc.
+  workspaces:
+    - name: results
+      description: JUnit test results directory
+  steps:
+    - name: run-preflight-tests
+      image: registry.access.redhat.com/ubi8/python-38
+      workingDir: $(workspaces.results.path)
+      script: |
+        #! /usr/bin/env bash
+        # TODO Run some actual tests. Treating this like a black box for now.
+        echo -n passed | tee $(results.status.path)
+        ls -alh

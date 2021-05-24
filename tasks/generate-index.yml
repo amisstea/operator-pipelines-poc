@@ -1,0 +1,40 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: generate-index
+spec:
+  params:
+    - name: bundle_image
+  workspaces:
+    - name: output
+  steps:
+    - name: generate
+      image: quay.io/containers/podman:v3.1.2
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: varlibcontainers
+          mountPath: /var/lib/containers
+      workingDir: $(workspaces.output.path)
+      script: |
+        #! /usr/bin/env bash
+        set -xe
+
+        curl -L -o /bin/opm https://github.com/operator-framework/operator-registry/releases/download/v1.17.1/linux-amd64-opm
+        chmod +x /bin/opm
+        # TODO should --from-index be specified?
+        # --permissive is used to overcome errors about the missing bundles
+        # this one replaces.
+        opm index add \
+          --bundles $(params.bundle_image) \
+          --container-tool podman \
+          --out-dockerfile Dockerfile \
+          --generate \
+          --skip-tls \
+          --permissive
+
+        ls -alh
+  volumes:
+    - name: varlibcontainers
+      emptyDir: {}

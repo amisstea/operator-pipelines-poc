@@ -1,0 +1,238 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: operator-cert-pipeline
+spec:
+  params:
+    - name: git_repo_url
+    - name: git_refspec
+    - name: git_head_revision
+    - name: git_base_revision
+    - name: github_username
+    - name: github_pull_request_title
+    - name: github_pull_request_url
+    - name: registry
+      default: default-route-openshift-image-registry.apps-crc.testing
+  workspaces:
+    - name: pipeline
+  tasks:
+    - name: checkout
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      params:
+        - name: url
+          value: $(params.git_repo_url)
+        - name: revision
+          value: $(params.git_head_revision)
+        - name: refspec
+          value: $(params.git_refspec)
+        # The depth just needs to be large enough to include the base revision
+        # so that a diff can be generated.
+        - name: depth
+          value: "100"
+      workspaces:
+        - name: output
+          workspace: pipeline
+          subPath: src
+
+    - name: authorize
+      runAfter:
+        - checkout
+      taskRef:
+        name: operator-cert-authorize
+      params:
+        - name: github_username
+          value: $(params.github_username)
+        - name: git_base_revision
+          value: $(params.git_base_revision)
+      workspaces:
+        - name: source
+          workspace: pipeline
+          subPath: src
+
+    - name: validate
+      runAfter:
+        - authorize
+      taskRef:
+        name: operator-cert-validate
+      params:
+        - name: bundle_path
+          value: $(tasks.authorize.results.bundle_path)
+      workspaces:
+        - name: source
+          workspace: pipeline
+          subPath: src
+
+    - name: build-bundle
+      runAfter:
+        - validate
+      taskRef:
+        # TODO: The bundle image build needs to generate a Dockerfile first
+        # from the source using opm commands. It's a security risk to allow
+        # user specified Dockerfiles as additional malicious steps could be
+        # inserted and be near-impossible to guard against.
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+        - name: CONTEXT
+          value: "$(tasks.authorize.results.bundle_path)"
+        # TODO TLS verification disabled for demo purposes
+        - name: TLSVERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: pipeline
+          subPath: src
+
+    - name: generate-index-4-5
+      runAfter:
+        - build-bundle
+      taskRef:
+        name: generate-index
+      params:
+        - name: bundle_image
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+      when:
+        - input: $(tasks.validate.results.supports_ocp_4_5)
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: output
+          workspace: pipeline
+          subPath: index-4.5
+
+    - name: build-index-4-5
+      runAfter:
+        - generate-index-4-5
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index:$(tasks.validate.results.bundle_version)"
+        - name: CONTEXT
+          value: "index-4.5"
+        - name: TLSVERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: pipeline
+
+    - name: generate-index-4-6
+      runAfter:
+        - build-bundle
+      taskRef:
+        name: generate-index
+      params:
+        - name: bundle_image
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+      when:
+        - input: $(tasks.validate.results.supports_ocp_4_6)
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: output
+          workspace: pipeline
+          subPath: index-4.6
+
+    - name: build-index-4-6
+      runAfter:
+        - generate-index-4-6
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index:$(tasks.validate.results.bundle_version)"
+        - name: CONTEXT
+          value: "index-4.6"
+        - name: TLSVERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: pipeline
+
+    - name: generate-index-4-7
+      runAfter:
+        - build-bundle
+      taskRef:
+        name: generate-index
+      params:
+        - name: bundle_image
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+      when:
+        - input: $(tasks.validate.results.supports_ocp_4_7)
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: output
+          workspace: pipeline
+          subPath: index-4.7
+
+    - name: build-index-4-7
+      runAfter:
+        - generate-index-4-7
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index:$(tasks.validate.results.bundle_version)"
+        - name: CONTEXT
+          value: "index-4.7"
+        - name: TLSVERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: pipeline
+
+    - name: generate-index-4-8
+      runAfter:
+        - build-bundle
+      taskRef:
+        name: generate-index
+      params:
+        - name: bundle_image
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+      when:
+        - input: $(tasks.validate.results.supports_ocp_4_8)
+          operator: in
+          values: ["true"]
+      workspaces:
+        - name: output
+          workspace: pipeline
+          subPath: index-4.8
+
+    - name: build-index-4-8
+      runAfter:
+        - generate-index-4-8
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index:$(tasks.validate.results.bundle_version)"
+        - name: CONTEXT
+          value: "index-4.8"
+        - name: TLSVERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: pipeline
+
+    # TODO
+    # - Need an agreement on params interface for testing.
+    # - Do we need a task for each OCP version?
+    # - How to merge the pipeline branches back together when some are
+    #   conditionally skipped?
+    #- name: test
+    #  taskRef:
+    #    name: operator-cert-test
+    #  workspaces:
+    #    - name: results
+    #      workspace: pipeline
+    #      subPath: test-results
