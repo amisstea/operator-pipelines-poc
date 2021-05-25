@@ -21,6 +21,20 @@ spec:
         name: operator-cert-trigger-template
 
 ---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  labels:
+    eventlistener:  operator-cert-github-listener
+  name: operator-cert-ci
+spec:
+  port:
+    targetPort: http-listener
+  to:
+    kind: Service
+    name: el-operator-cert-github-listener
+
+---
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerBinding
 metadata:
@@ -56,8 +70,6 @@ spec:
     - name: github_username
     - name: github_pull_request_title
     - name: github_pull_request_url
-    - name: privileged_sa
-      default: generate-index-sa
   resourcetemplates:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
@@ -66,15 +78,6 @@ spec:
       spec:
         pipelineRef:
           name: operator-cert-pipeline
-        serviceAccountNames:
-          - taskName: generate-index-4-5
-            serviceAccountName: $(tt.params.privileged_sa)
-          - taskName: generate-index-4-6
-            serviceAccountName: $(tt.params.privileged_sa)
-          - taskName: generate-index-4-7
-            serviceAccountName: $(tt.params.privileged_sa)
-          - taskName: generate-index-4-8
-            serviceAccountName: $(tt.params.privileged_sa)
         params:
           - name: git_repo_url
             value: $(tt.params.git_repo_url)
