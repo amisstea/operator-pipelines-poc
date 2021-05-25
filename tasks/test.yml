@@ -21,7 +21,7 @@ spec:
       description: JUnit test results directory
   steps:
     - name: run-preflight-tests
-      image: registry.access.redhat.com/ubi8/python-38
+      image: registry.access.redhat.com/ubi8-minimal
       workingDir: $(workspaces.results.path)
       script: |
         #! /usr/bin/env bash

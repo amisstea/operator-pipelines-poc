@@ -26,7 +26,7 @@ spec:
         fi
         echo -n $BUNDLE | tee $(results.bundle_path.path)
     - name: verify-username
-      image: registry.access.redhat.com/ubi8/python-38
+      image: registry.access.redhat.com/ubi8-minimal
       script: |
         #! /usr/bin/env bash
         set -xe
