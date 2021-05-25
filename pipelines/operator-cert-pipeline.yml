@@ -73,6 +73,12 @@ spec:
         # from the source using opm commands. It's a security risk to allow
         # user specified Dockerfiles as additional malicious steps could be
         # inserted and be near-impossible to guard against.
+        #
+        # Alternatively, should we instead validate that opm generates the same
+        # output as the user submitted Dockerfile? The advantage to this is
+        # explicit Dockerfiles that don't need to be committed back to SCM by
+        # this pipeline. It's also more opaque to the user which could lead to
+        # better usability.
         name: buildah
         kind: ClusterTask
       params:
