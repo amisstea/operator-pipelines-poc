@@ -64,9 +64,9 @@ ngrok http --host-header=rewrite $OCP_ROUTE:80
 That's it! The pipeline should begin running.
 
 ## Limitations
-1. Tekton does not yet support a
-   [Pipeline-in-pipeline](https://github.com/tektoncd/community/blob/main/teps/0056-pipelines-in-pipelines.md)
-   feature. This makes composable pipelines difficult. Until this feature is
+1. Tekton does not yet support
+   [pipelines-in-pipelines](https://github.com/tektoncd/community/blob/main/teps/0056-pipelines-in-pipelines.md).
+   This makes composable pipelines difficult. Until this feature is
    readily available, pipeline definitions may be repetitive and not share the
    exact same implementation.
 2. Running tasks after a series of conditionally skipped Tekton branches
@@ -75,7 +75,8 @@ That's it! The pipeline should begin running.
    branches, a common CI/CD workflow, is not available in Tekton's beta state.
    The latter tasks in the pipeline will probably need a solution that's more
    flexible than using the `finally` definition. This may come at the cost of
-   added complexity.
+   added complexity. Pipelines in pipelines may offer a solution to this
+   problem.
 
 ## Outstanding PoC Work
 1. Triggering a `PipelineRun` from a local development machine. This is needed to
