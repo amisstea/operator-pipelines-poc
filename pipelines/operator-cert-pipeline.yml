@@ -83,25 +83,27 @@ spec:
         kind: ClusterTask
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+          value: &bundleImage "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "$(tasks.authorize.results.bundle_path)"
         # TODO TLS verification disabled for demo purposes
-        - name: TLSVERIFY
+        - &buildahNoTlsVerify
+          name: TLSVERIFY
           value: "false"
       workspaces:
         - name: source
           workspace: pipeline
           subPath: src
 
-    - name: generate-index-4-5
+    - &generateIndex
+      name: generate-index-4-5
       runAfter:
         - build-bundle
       taskRef:
         name: generate-index
       params:
         - name: bundle_image
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+          value: *bundleImage
       when:
         - input: $(tasks.validate.results.supports_ocp_4_5)
           operator: in
@@ -111,7 +113,8 @@ spec:
           workspace: pipeline
           subPath: index-4.5
 
-    - name: build-index-4-5
+    - &buildIndex
+      name: build-index-4-5
       runAfter:
         - generate-index-4-5
       taskRef:
@@ -119,23 +122,16 @@ spec:
         kind: ClusterTask
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index:$(tasks.validate.results.bundle_version)"
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-5:$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "index-4.5"
-        - name: TLSVERIFY
-          value: "false"
+        - <<: *buildahNoTlsVerify
       workspaces:
         - name: source
           workspace: pipeline
 
-    - name: generate-index-4-6
-      runAfter:
-        - build-bundle
-      taskRef:
-        name: generate-index
-      params:
-        - name: bundle_image
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+    - <<: *generateIndex
+      name: generate-index-4-6
       when:
         - input: $(tasks.validate.results.supports_ocp_4_6)
           operator: in
@@ -145,31 +141,19 @@ spec:
           workspace: pipeline
           subPath: index-4.6
 
-    - name: build-index-4-6
+    - <<: *buildIndex
+      name: build-index-4-6
       runAfter:
         - generate-index-4-6
-      taskRef:
-        name: buildah
-        kind: ClusterTask
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index:$(tasks.validate.results.bundle_version)"
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-6:$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "index-4.6"
-        - name: TLSVERIFY
-          value: "false"
-      workspaces:
-        - name: source
-          workspace: pipeline
+        - <<: *buildahNoTlsVerify
 
-    - name: generate-index-4-7
-      runAfter:
-        - build-bundle
-      taskRef:
-        name: generate-index
-      params:
-        - name: bundle_image
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+    - <<: *generateIndex
+      name: generate-index-4-7
       when:
         - input: $(tasks.validate.results.supports_ocp_4_7)
           operator: in
@@ -179,31 +163,19 @@ spec:
           workspace: pipeline
           subPath: index-4.7
 
-    - name: build-index-4-7
+    - <<: *buildIndex
+      name: build-index-4-7
       runAfter:
         - generate-index-4-7
-      taskRef:
-        name: buildah
-        kind: ClusterTask
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index:$(tasks.validate.results.bundle_version)"
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-7:$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "index-4.7"
-        - name: TLSVERIFY
-          value: "false"
-      workspaces:
-        - name: source
-          workspace: pipeline
+        - <<: *buildahNoTlsVerify
 
-    - name: generate-index-4-8
-      runAfter:
-        - build-bundle
-      taskRef:
-        name: generate-index
-      params:
-        - name: bundle_image
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+    - <<: *generateIndex
+      name: generate-index-4-8
       when:
         - input: $(tasks.validate.results.supports_ocp_4_8)
           operator: in
@@ -213,23 +185,16 @@ spec:
           workspace: pipeline
           subPath: index-4.8
 
-    - name: build-index-4-8
+    - <<: *buildIndex
+      name: build-index-4-8
       runAfter:
         - generate-index-4-8
-      taskRef:
-        name: buildah
-        kind: ClusterTask
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index:$(tasks.validate.results.bundle_version)"
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-8:$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "index-4.8"
-        - name: TLSVERIFY
-          value: "false"
-      workspaces:
-        - name: source
-          workspace: pipeline
-
+        - <<: *buildahNoTlsVerify
     # TODO
     # - Need an agreement on params interface for testing.
     # - Do we need a task for each OCP version?
