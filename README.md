@@ -69,11 +69,6 @@ That's it! The pipeline should begin running.
    feature. This makes composable pipelines difficult. Until this feature is
    readily available, pipeline definitions may be repetitive and not share the
    exact same implementation.
-
-## Outstanding PoC Work
-1. Triggering a `PipelineRun` from a local development machine. This is needed to
-   show feasibility of a partner running the validate, build and test-like tasks
-   of the demo pipeline against an arbitrary bundle source directory.
 2. Running tasks after a series of conditionally skipped Tekton branches
    (index generation/building) is [not as simple](https://github.com/tektoncd/community/blob/main/teps/0059-skipping-strategies.md)
    as one might expect. [Split-joining](https://github.com/tektoncd/pipeline/issues/3929)
@@ -81,3 +76,9 @@ That's it! The pipeline should begin running.
    The latter tasks in the pipeline will probably need a solution that's more
    flexible than using the `finally` definition. This may come at the cost of
    added complexity.
+
+## Outstanding PoC Work
+1. Triggering a `PipelineRun` from a local development machine. This is needed to
+   show feasibility of a partner running the validate, build and test-like tasks
+   of the demo pipeline against an arbitrary bundle source directory.
+2. Find a workaround to split-joining with conditional branches
