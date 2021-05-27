@@ -9,8 +9,6 @@ Additionally, for demonstration purposes, this uses the already established
 structure of the Community Operator Pipeline. It should ultimately be triggered
 by pull requests made to certified and/or Red Hat Marketplace submission repos.
 
-![Successful pipeline run](img/pipeline-details.png)
-
 ## Prerequisites
 
 1. Install [CodeReady Containers](https://code-ready.github.io/crc/#installation_gsg)
@@ -55,7 +53,8 @@ tkn pipeline start operator-test-pipeline \
   --param git_repo_url=[GIT_REPO] \
   --param git_revision=[BRANCH,COMMIT,TAG] \
   --param bundle_path=[RELATIVE_PATH_WITHIN_GIT_REPO] \
-  --workspace name=pipeline,volumeClaimTemplateFile=test/workspace-template.yml
+  --workspace name=pipeline,volumeClaimTemplateFile=test/workspace-template.yml \
+  --showlog
 ```
 
 Ex:
@@ -65,15 +64,13 @@ tkn pipeline start operator-test-pipeline \
   --param git_repo_url=https://github.com/amisstea/community-operators.git \
   --param git_revision=test-branch \
   --param bundle_path=community-operators/kogito-operator/1.6.0 \
-  --workspace name=pipeline,volumeClaimTemplateFile=test/workspace-template.yml
+  --workspace name=pipeline,volumeClaimTemplateFile=test/workspace-template.yml \
+  --showlog
 ```
 
-That's it! A `PipelineRun` should now be running. View the logs in the
-OpenShift console or with the `tkn` CLI.
+That's it! A `PipelineRun` should now be running.
 
-```bash
-tkn pipeline logs -f
-```
+![Successful test pipeline run](img/test-pipelinerun-details.png)
 
 ## Running the Red Hat Certification Pipeline
 
@@ -94,6 +91,8 @@ ngrok http --host-header=rewrite $OCP_ROUTE:80
 3. Submit a pull request from your branch to the `master` branch of your
    forked `community-operators` repo. This should trigger the creation of a
    `PipelineRun`.
+
+![Successful cert pipeline run](img/cert-pipelinerun-details.png)
 
 ## Limitations
 1. Tekton does not yet support

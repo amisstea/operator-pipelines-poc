@@ -5,13 +5,10 @@ metadata:
   name: operator-cert-test
 spec:
   params:
+    - name: index_image
     - name: redhat
       description: Include tests which require access to Red Hat's internal
         network.
-      default: "false"
-    - name: offline
-      description: Exclude tests which require an active connection to the
-        internet.
       default: "false"
   results:
     - name: status

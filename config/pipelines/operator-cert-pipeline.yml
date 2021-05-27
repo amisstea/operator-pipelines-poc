@@ -122,13 +122,26 @@ spec:
         kind: ClusterTask
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-5:$(tasks.validate.results.bundle_version)"
+          value: &indexImage45 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-5:$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "index-4.5"
         - <<: *buildahNoTlsVerify
       workspaces:
         - name: source
           workspace: pipeline
+
+    - name: test-4-5
+      taskRef:
+        name: operator-cert-test
+      runAfter:
+        - build-index-4-5
+      workspaces:
+        - name: results
+          workspace: pipeline
+          subPath: test-results-4.5
+      params:
+        - name: index_image
+          value: *indexImage45
 
     - <<: *generateIndex
       name: generate-index-4-6
@@ -147,10 +160,23 @@ spec:
         - generate-index-4-6
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-6:$(tasks.validate.results.bundle_version)"
+          value: &indexImage46 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-6:$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "index-4.6"
         - <<: *buildahNoTlsVerify
+
+    - name: test-4-6
+      taskRef:
+        name: operator-cert-test
+      runAfter:
+        - build-index-4-6
+      workspaces:
+        - name: results
+          workspace: pipeline
+          subPath: test-results-4.6
+      params:
+        - name: index_image
+          value: *indexImage46
 
     - <<: *generateIndex
       name: generate-index-4-7
@@ -169,10 +195,23 @@ spec:
         - generate-index-4-7
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-7:$(tasks.validate.results.bundle_version)"
+          value: &indexImage47 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-7:$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "index-4.7"
         - <<: *buildahNoTlsVerify
+
+    - name: test-4-7
+      taskRef:
+        name: operator-cert-test
+      runAfter:
+        - build-index-4-7
+      workspaces:
+        - name: results
+          workspace: pipeline
+          subPath: test-results-4.7
+      params:
+        - name: index_image
+          value: *indexImage47
 
     - <<: *generateIndex
       name: generate-index-4-8
@@ -191,19 +230,55 @@ spec:
         - generate-index-4-8
       params:
         - name: IMAGE
-          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-8:$(tasks.validate.results.bundle_version)"
+          value: &indexImage48 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-8:$(tasks.validate.results.bundle_version)"
         - name: CONTEXT
           value: "index-4.8"
         - <<: *buildahNoTlsVerify
-    # TODO
-    # - Need an agreement on params interface for testing.
-    # - Do we need a task for each OCP version?
-    # - How to merge the pipeline branches back together when some are
-    #   conditionally skipped?
-    #- name: test
-    #  taskRef:
-    #    name: operator-cert-test
-    #  workspaces:
-    #    - name: results
-    #      workspace: pipeline
-    #      subPath: test-results
+
+    - name: test-4-8
+      taskRef:
+        name: operator-cert-test
+      runAfter:
+        - build-index-4-8
+      workspaces:
+        - name: results
+          workspace: pipeline
+          subPath: test-results-4.8
+      params:
+        - name: index_image
+          value: *indexImage48
+
+    # This is a temporary workaround for continuing after conditionally
+    # skipped branches. Tasks which define runAfter with skipped tasks are never
+    # executed. This could be a lot smarter - more than a dumb sleep. Maybe
+    # a custom taskrun monitoring script for the "tkn" clustertask could be
+    # viable. It will probably still look odd when viewing the PipelineRun
+    # diagram, however.
+    - name: workaround
+      taskRef:
+        name: sleep
+      runAfter:
+        - build-bundle
+      params:
+        - name: time
+          value: "60"
+
+    # TODO - placeholder
+    - name: verify
+      taskRef:
+        name: sleep
+      runAfter:
+        - workaround
+      params:
+        - name: time
+          value: "1"
+
+    # TODO - placeholder
+    - name: merge
+      taskRef:
+        name: sleep
+      runAfter:
+        - verify
+      params:
+        - name: time
+          value: "1"
