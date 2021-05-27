@@ -15,8 +15,9 @@ by pull requests made to certified and/or Red Hat Marketplace submission repos.
 
 1. Install [CodeReady Containers](https://code-ready.github.io/crc/#installation_gsg)
 2. Install [OpenShift Pipelines](https://docs.openshift.com/container-platform/4.7/cicd/pipelines/installing-pipelines.html)
+3. Install the [tkn](https://console-openshift-console.apps-crc.testing/command-line-tools) CLI for your cluster version
 
-## Setup
+## Initial Setup
 The following steps assume you have access to a local CRC test cluster and have
 logged in via the `oc` CLI (as developer).
 
@@ -35,10 +36,48 @@ git clone https://github.com/amisstea/operator-pipelines-poc.git
 3. Apply the OpenShift resources
 
 ```bash
-oc apply -R -f operator-pipelines-poc
+oc apply -R -f operator-pipelines-poc/config
 ```
 
-4. [Optional] Expose your local CRC cluster to the internet, if necessary.
+4. Fork the [community-operators](https://github.com/operator-framework/community-operators)
+   repo. Modify one of the operators utilizing the bundle format
+   ([example](https://github.com/amisstea/community-operators/commit/88c9c0e4e843e4f5fb34033abb924606017064aa))
+   and push your local changes so they are accessible for testing.
+
+## Running the Basic Certification Pipeline
+
+Assuming the working directory is the root of this repo, the base pipeline
+(the one a partner may run) can be manually triggered with a Git source
+location.
+
+```bash
+tkn pipeline start operator-test-pipeline \
+  --param git_repo_url=[GIT_REPO] \
+  --param git_revision=[BRANCH,COMMIT,TAG] \
+  --param bundle_path=[RELATIVE_PATH_WITHIN_GIT_REPO] \
+  --workspace name=pipeline,volumeClaimTemplateFile=test/workspace-template.yml
+```
+
+Ex:
+
+```bash
+tkn pipeline start operator-test-pipeline \
+  --param git_repo_url=https://github.com/amisstea/community-operators.git \
+  --param git_revision=test-branch \
+  --param bundle_path=community-operators/kogito-operator/1.6.0 \
+  --workspace name=pipeline,volumeClaimTemplateFile=test/workspace-template.yml
+```
+
+That's it! A `PipelineRun` should now be running. View the logs in the
+OpenShift console or with the `tkn` CLI.
+
+```bash
+tkn pipeline logs -f
+```
+
+## Running the Red Hat Certification Pipeline
+
+1. [Optional] Expose your local CRC cluster to the internet, if necessary.
    Tools such as [ngrok](https://dashboard.ngrok.com/get-started/setup) are
    handy for this. This is only required if your cluster cannot be reached
    from beyond your network. For example:
@@ -48,20 +87,13 @@ OCP_ROUTE=$(oc get route operator-cert-ci -o jsonpath='{.spec.host}')
 ngrok http --host-header=rewrite $OCP_ROUTE:80
 ```
 
-5. Fork the [community-operators](https://github.com/operator-framework/community-operators) repo
-
-6. Setup a GitHub webhook to reach your local CRC cluster. Point
-   this hook at your publicly accessible tunnel or OpenShift route. The only
+2. Setup a GitHub webhook on your fork of `community-operators`. Point this
+   hook at your publicly accessible tunnel or OpenShift route. The only
    event type that is supported for now is `Pull requests`.
 
-7. Submit a pull request from a branch in your forked community-operators repo
-   into the `master` branch of the same fork. To be a little more
-   representative of the branching decisions the production pipelines would
-   need to make, the bundle included with the pull request MUST specify the
-   `com.redhat.openshift.versions` annotation. An example can be found
-   [here](https://github.com/amisstea/community-operators/pull/1).
-
-That's it! The pipeline should begin running.
+3. Submit a pull request from your branch to the `master` branch of your
+   forked `community-operators` repo. This should trigger the creation of a
+   `PipelineRun`.
 
 ## Limitations
 1. Tekton does not yet support
@@ -79,7 +111,4 @@ That's it! The pipeline should begin running.
    problem.
 
 ## Outstanding PoC Work
-1. Triggering a `PipelineRun` from a local development machine. This is needed to
-   show feasibility of a partner running the validate, build and test-like tasks
-   of the demo pipeline against an arbitrary bundle source directory.
-2. Find a workaround to split-joining with conditional branches
+1. Find a workaround to split-joining with conditional branches
