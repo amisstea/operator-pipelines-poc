@@ -45,7 +45,7 @@ spec:
       value: $(body.repository.html_url)
     - name: git_refspec
       value: "refs/pull/$(body.pull_request.number)/head"
-    - name: git_head_revision
+    - name: git_revision
       value: $(body.pull_request.head.sha)
     - name: git_base_revision
       value: $(body.pull_request.base.sha)
@@ -65,7 +65,7 @@ spec:
   params:
     - name: git_repo_url
     - name: git_refspec
-    - name: git_head_revision
+    - name: git_revision
     - name: git_base_revision
     - name: github_username
     - name: github_pull_request_title
@@ -83,8 +83,8 @@ spec:
             value: $(tt.params.git_repo_url)
           - name: git_refspec
             value: $(tt.params.git_refspec)
-          - name: git_head_revision
-            value: $(tt.params.git_head_revision)
+          - name: git_revision
+            value: $(tt.params.git_revision)
           - name: git_base_revision
             value: $(tt.params.git_base_revision)
           - name: github_username

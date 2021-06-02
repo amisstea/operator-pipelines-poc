@@ -1,3 +1,7 @@
+![Successful cert pipeline run](img/cert-pipelinerun-details.png)
+
+![Successful test pipeline run](img/test-pipelinerun-details.png)
+
 # operator-pipelines-poc
 Proof of Concept for an Operator Certification Pipeline using OpenShift Pipelines.
 
@@ -42,9 +46,9 @@ oc apply -R -f operator-pipelines-poc/config
    ([example](https://github.com/amisstea/community-operators/commit/88c9c0e4e843e4f5fb34033abb924606017064aa))
    and push your local changes so they are accessible for testing.
 
-## Running the Basic Certification Pipeline
+## Running the Base Test Pipeline
 
-Assuming the working directory is the root of this repo, the base pipeline
+Assuming the working directory is the root of this repo, the base test pipeline
 (the one a partner may run) can be manually triggered with a Git source
 location.
 
@@ -70,8 +74,6 @@ tkn pipeline start operator-test-pipeline \
 
 That's it! A `PipelineRun` should now be running.
 
-![Successful test pipeline run](img/test-pipelinerun-details.png)
-
 ## Running the Red Hat Certification Pipeline
 
 1. [Optional] Expose your local CRC cluster to the internet, if necessary.
@@ -92,22 +94,30 @@ ngrok http --host-header=rewrite $OCP_ROUTE:80
    forked `community-operators` repo. This should trigger the creation of a
    `PipelineRun`.
 
-![Successful cert pipeline run](img/cert-pipelinerun-details.png)
-
 ## Limitations
-1. Tekton does not yet support
-   [pipelines-in-pipelines](https://github.com/tektoncd/community/blob/main/teps/0056-pipelines-in-pipelines.md).
-   This makes composable pipelines difficult. Until this feature is
-   readily available, pipeline definitions may be repetitive and not share the
-   exact same implementation.
-2. Running tasks after a series of conditionally skipped Tekton branches
-   (index generation/building) is [not as simple](https://github.com/tektoncd/community/blob/main/teps/0059-skipping-strategies.md)
-   as one might expect. [Split-joining](https://github.com/tektoncd/pipeline/issues/3929)
-   branches, a common CI/CD workflow, is not available in Tekton's beta state.
-   The latter tasks in the pipeline will probably need a solution that's more
-   flexible than using the `finally` definition. This may come at the cost of
-   added complexity. Pipelines in pipelines may offer a solution to this
-   problem.
 
-## Outstanding PoC Work
-1. Find a workaround to split-joining with conditional branches
+### Pipelines in Pipelines
+
+Tekton does not yet support
+[pipelines-in-pipelines](https://github.com/tektoncd/community/blob/main/teps/0056-pipelines-in-pipelines.md).
+
+#### Workaround
+
+The `tkn` `ClusterTask` can be used to start pipelines and monitor their logs.
+An example of this can be found in the `run-operator-test-pipeline` pipeline
+task.
+
+### Running Tasks After Skipped Tasks
+Running a task after a conditional task
+(index generation/building/testing) is [not as simple](https://github.com/tektoncd/community/blob/main/teps/0059-skipping-strategies.md)
+as one might expect. [Split-joining](https://github.com/tektoncd/pipeline/issues/3929)
+conditional branches, a common CI/CD workflow, is not available in Tekton's beta state.
+The `Pipeline` schema has a `finally` section for tasks to always run at the end
+but that won't be ideal in a lot of circumstances. On top of that, tasks under
+`finally` are always run in parallel.
+
+#### Workaround
+
+Embedding pipelines in pipelines can likely solve most problems at the expense
+of creating additional `PipelineRuns` and the confusion that may cause. See the
+workaround.

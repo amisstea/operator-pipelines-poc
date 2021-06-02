@@ -222,3 +222,11 @@ spec:
       params:
         - name: index_image
           value: *indexImage48
+
+  results:
+    - name: package_name
+      value: $(tasks.validate.results.package_name)
+    - name: bundle_version
+      value: $(tasks.validate.results.bundle_version)
+    - name: bundle_image
+      value: &bundleImage

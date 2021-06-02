@@ -6,8 +6,8 @@ metadata:
 spec:
   params:
     - name: git_repo_url
+    - name: git_revision
     - name: git_refspec
-    - name: git_head_revision
     - name: git_base_revision
     - name: github_username
     - name: github_pull_request_title
@@ -25,7 +25,7 @@ spec:
         - name: url
           value: $(params.git_repo_url)
         - name: revision
-          value: $(params.git_head_revision)
+          value: $(params.git_revision)
         - name: refspec
           value: $(params.git_refspec)
         # The depth just needs to be large enough to include the base revision
@@ -52,223 +52,56 @@ spec:
           workspace: pipeline
           subPath: src
 
-    - name: validate
+    - name: run-operator-test-pipeline
       runAfter:
         - authorize
       taskRef:
-        name: operator-cert-validate
-      params:
-        - name: bundle_path
-          value: $(tasks.authorize.results.bundle_path)
-      workspaces:
-        - name: source
-          workspace: pipeline
-          subPath: src
-
-    - name: build-bundle
-      runAfter:
-        - validate
-      taskRef:
-        # TODO: The bundle image build needs to generate a Dockerfile first
-        # from the source using opm commands. It's a security risk to allow
-        # user specified Dockerfiles as additional malicious steps could be
-        # inserted and be near-impossible to guard against.
-        #
-        # Alternatively, should we instead validate that opm generates the same
-        # output as the user submitted Dockerfile? The advantage to this is
-        # explicit Dockerfiles that don't need to be committed back to SCM by
-        # this pipeline. It's also more opaque to the user which could lead to
-        # better usability.
-        name: buildah
+        name: tkn
         kind: ClusterTask
       params:
-        - name: IMAGE
-          value: &bundleImage "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
-        - name: CONTEXT
-          value: "$(tasks.authorize.results.bundle_path)"
-        # TODO TLS verification disabled for demo purposes
-        - &buildahNoTlsVerify
-          name: TLSVERIFY
-          value: "false"
-      workspaces:
-        - name: source
-          workspace: pipeline
-          subPath: src
+        - name: SCRIPT
+          value: |
+            set +xe
 
-    - &generateIndex
-      name: generate-index-4-5
-      runAfter:
-        - build-bundle
-      taskRef:
-        name: generate-index
-      params:
-        - name: bundle_image
-          value: *bundleImage
-      when:
-        - input: $(tasks.validate.results.supports_ocp_4_5)
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: output
-          workspace: pipeline
-          subPath: index-4.5
+            # TODO Is there a better way to setup the workspace?
+            cat <<EOF >> volume-claim-template.yml
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 100Mi
+            EOF
 
-    - &buildIndex
-      name: build-index-4-5
-      runAfter:
-        - generate-index-4-5
-      taskRef:
-        name: buildah
-        kind: ClusterTask
-      params:
-        - name: IMAGE
-          value: &indexImage45 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-5:$(tasks.validate.results.bundle_version)"
-        - name: CONTEXT
-          value: "index-4.5"
-        - <<: *buildahNoTlsVerify
-      workspaces:
-        - name: source
-          workspace: pipeline
+            # TODO Propogate results from the pipelinerun here
+            tkn pipeline start operator-test-pipeline \
+              --param git_repo_url=$(params.git_repo_url) \
+              --param git_revision=$(params.git_revision) \
+              --param registry=$(params.registry) \
+              --param bundle_path=$(tasks.authorize.results.bundle_path) \
+              --workspace name=pipeline,volumeClaimTemplateFile=volume-claim-template.yml \
+              --prefix-name "$(context.pipelineRun.name)-test" \
+              --showlog
 
-    - name: test-4-5
-      taskRef:
-        name: operator-cert-test
-      runAfter:
-        - build-index-4-5
-      workspaces:
-        - name: results
-          workspace: pipeline
-          subPath: test-results-4.5
-      params:
-        - name: index_image
-          value: *indexImage45
-
-    - <<: *generateIndex
-      name: generate-index-4-6
-      when:
-        - input: $(tasks.validate.results.supports_ocp_4_6)
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: output
-          workspace: pipeline
-          subPath: index-4.6
-
-    - <<: *buildIndex
-      name: build-index-4-6
-      runAfter:
-        - generate-index-4-6
-      params:
-        - name: IMAGE
-          value: &indexImage46 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-6:$(tasks.validate.results.bundle_version)"
-        - name: CONTEXT
-          value: "index-4.6"
-        - <<: *buildahNoTlsVerify
-
-    - name: test-4-6
-      taskRef:
-        name: operator-cert-test
-      runAfter:
-        - build-index-4-6
-      workspaces:
-        - name: results
-          workspace: pipeline
-          subPath: test-results-4.6
-      params:
-        - name: index_image
-          value: *indexImage46
-
-    - <<: *generateIndex
-      name: generate-index-4-7
-      when:
-        - input: $(tasks.validate.results.supports_ocp_4_7)
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: output
-          workspace: pipeline
-          subPath: index-4.7
-
-    - <<: *buildIndex
-      name: build-index-4-7
-      runAfter:
-        - generate-index-4-7
-      params:
-        - name: IMAGE
-          value: &indexImage47 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-7:$(tasks.validate.results.bundle_version)"
-        - name: CONTEXT
-          value: "index-4.7"
-        - <<: *buildahNoTlsVerify
-
-    - name: test-4-7
-      taskRef:
-        name: operator-cert-test
-      runAfter:
-        - build-index-4-7
-      workspaces:
-        - name: results
-          workspace: pipeline
-          subPath: test-results-4.7
-      params:
-        - name: index_image
-          value: *indexImage47
-
-    - <<: *generateIndex
-      name: generate-index-4-8
-      when:
-        - input: $(tasks.validate.results.supports_ocp_4_8)
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: output
-          workspace: pipeline
-          subPath: index-4.8
-
-    - <<: *buildIndex
-      name: build-index-4-8
-      runAfter:
-        - generate-index-4-8
-      params:
-        - name: IMAGE
-          value: &indexImage48 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-8:$(tasks.validate.results.bundle_version)"
-        - name: CONTEXT
-          value: "index-4.8"
-        - <<: *buildahNoTlsVerify
-
-    - name: test-4-8
-      taskRef:
-        name: operator-cert-test
-      runAfter:
-        - build-index-4-8
-      workspaces:
-        - name: results
-          workspace: pipeline
-          subPath: test-results-4.8
-      params:
-        - name: index_image
-          value: *indexImage48
-
-    # This is a temporary workaround for continuing after conditionally
-    # skipped branches. Tasks which define runAfter with skipped tasks are never
-    # executed. This could be a lot smarter - more than a dumb sleep. Maybe
-    # a custom taskrun monitoring script for the "tkn" clustertask could be
-    # viable. It will probably still look odd when viewing the PipelineRun
-    # diagram, however.
-    - name: workaround
-      taskRef:
-        name: sleep
-      runAfter:
-        - build-bundle
-      params:
-        - name: time
-          value: "60"
+            # TODO Check the sub-pipeline's status. `pipeline start` gives a 
+            # 0 return code even when the underlying tasks fail.
 
     # TODO - placeholder
     - name: verify
       taskRef:
         name: sleep
       runAfter:
-        - workaround
+        - run-operator-test-pipeline
+      params:
+        - name: time
+          value: "1"
+
+    # TODO - placeholder
+    - name: write-metadata
+      taskRef:
+        name: sleep
+      runAfter:
+        - verify
       params:
         - name: time
           value: "1"
@@ -278,7 +111,7 @@ spec:
       taskRef:
         name: sleep
       runAfter:
-        - verify
+        - write-metadata
       params:
         - name: time
           value: "1"
