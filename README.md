@@ -121,3 +121,6 @@ but that won't be ideal in a lot of circumstances. On top of that, tasks under
 Embedding pipelines in pipelines can likely solve most problems at the expense
 of creating additional `PipelineRuns` and the confusion that may cause. See the
 workaround.
+
+Alternatively, where possible, tasks may need to be constructed such that they
+always pass but intentionally behave as a no-op given some params.
