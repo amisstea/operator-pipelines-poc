@@ -43,6 +43,8 @@ spec:
   params:
     - name: git_repo_url
       value: $(body.repository.html_url)
+    - name: git_repo_name
+      value: $(body.repository.full_name)
     - name: git_refspec
       value: "refs/pull/$(body.pull_request.number)/head"
     - name: git_revision
@@ -64,6 +66,7 @@ metadata:
 spec:
   params:
     - name: git_repo_url
+    - name: git_repo_name
     - name: git_refspec
     - name: git_revision
     - name: git_base_revision
@@ -81,6 +84,8 @@ spec:
         params:
           - name: git_repo_url
             value: $(tt.params.git_repo_url)
+          - name: git_repo_name
+            value: $(tt.params.git_repo_name)
           - name: git_refspec
             value: $(tt.params.git_refspec)
           - name: git_revision

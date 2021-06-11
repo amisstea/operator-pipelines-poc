@@ -10,14 +10,12 @@ spec:
     - name: output
   steps:
     - name: generate
-      image: registry.access.redhat.com/ubi8-minimal
+      image: quay.io/amisstea/operator-pipeline-tools:latest
       workingDir: $(workspaces.output.path)
       script: |
         #! /usr/bin/env bash
         set -xe
 
-        curl -L -o /bin/opm https://github.com/operator-framework/operator-registry/releases/download/v1.17.1/linux-amd64-opm
-        chmod +x /bin/opm
         # TODO should --from-index be specified?
         # --permissive is used to overcome errors about the missing bundles
         # this one replaces.

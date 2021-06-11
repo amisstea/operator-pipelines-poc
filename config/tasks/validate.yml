@@ -23,18 +23,11 @@ spec:
     - name: source
   steps:
     - name: verify-openshift-versions
-      image: registry.access.redhat.com/ubi8/python-38
+      image: quay.io/amisstea/operator-pipeline-tools:latest
       workingDir: $(workspaces.source.path)
       script: |
         #! /usr/bin/env bash
         set -xe
-
-        # TODO: Use a trusted image with preinstalled dependencies
-        pip install yq
-        mkdir "$HOME/bin"
-        curl -L -o "$HOME/bin/jq" https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-        chmod +x "$HOME/bin/jq"
-        export PATH="$PATH:$HOME/bin"
 
         BUNDLE_PATH=$(realpath $(params.bundle_path))
 

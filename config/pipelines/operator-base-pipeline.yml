@@ -1,0 +1,188 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: operator-base-pipeline
+spec:
+  params:
+    - name: git_repo_url
+    - name: git_repo_name
+    - name: git_revision
+    - name: bundle_path
+    - name: registry
+      default: default-route-openshift-image-registry.apps-crc.testing
+    - name: s3_bucket
+      default: operator-pipeline-results
+    - name: aws_secret_name
+      default: null
+    - name: upload_results
+      default: "false"
+    - name: set_github_status
+      default: "false"
+  workspaces:
+    - name: pipeline
+  tasks:
+    - name: checkout
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      params:
+        - name: url
+          value: $(params.git_repo_url)
+        - name: revision
+          value: $(params.git_revision)
+      workspaces:
+        - name: output
+          workspace: pipeline
+          subPath: src
+
+    - name: validate
+      runAfter:
+        - checkout
+      taskRef:
+        name: operator-cert-validate
+      params:
+        - name: bundle_path
+          value: "$(params.bundle_path)"
+      workspaces:
+        - name: source
+          workspace: pipeline
+          subPath: src
+
+    - name: build-bundle
+      runAfter:
+        - validate
+      taskRef:
+        # TODO: The bundle image build needs to generate a Dockerfile first
+        # from the source using opm commands. It's a security risk to allow
+        # user specified Dockerfiles as additional malicious steps could be
+        # inserted and be near-impossible to guard against.
+        #
+        # Alternatively, should we instead validate that opm generates the same
+        # output as the user submitted Dockerfile? The advantage to this is
+        # explicit Dockerfiles that don't need to be committed back to SCM by
+        # this pipeline. It's also more opaque to the user which could lead to
+        # better usability.
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: &bundleImage "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+        - name: CONTEXT
+          value: "$(params.bundle_path)"
+        # TODO TLS verification disabled for demo purposes
+        - &buildahNoTlsVerify
+          name: TLSVERIFY
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: pipeline
+          subPath: src
+
+    - name: run-operator-test-pipeline-4-5
+      runAfter:
+        - build-bundle
+      taskRef:
+        name: tkn
+        kind: ClusterTask
+      when:
+        - input: $(tasks.validate.results.supports_ocp_4_5)
+          operator: in
+          values: ["true"]
+      params:
+        - &testPipelineScript
+          name: SCRIPT
+          value: |
+            set -xe
+
+            # TODO Is there a better way to setup the workspace?
+            cat <<EOF >> volume-claim-template.yml
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 100Mi
+            EOF
+
+            if [ -z "$(params.aws_secret_name)" ]; then
+              AWS_SECRETS_WORKSPACE=""
+            else
+              AWS_SECRETS_WORKSPACE="--workspace name=aws-secrets,secret=$(params.aws_secret_name)"
+            fi
+
+            tkn pipeline start operator-test-pipeline \
+              --param package_name=$(tasks.validate.results.package_name) \
+              --param bundle_image="$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)" \
+              --param ocp_version="$1" \
+              --param registry=$(params.registry) \
+              --param git_commit=$(tasks.checkout.results.commit) \
+              --param git_repo_name=$(params.git_repo_name) \
+              --param upload_results=$(params.upload_results) \
+              --param set_github_status=$(params.set_github_status) \
+              --param s3_bucket=$(params.s3_bucket) \
+              --workspace name=pipeline,volumeClaimTemplateFile=volume-claim-template.yml \
+              $AWS_SECRETS_WORKSPACE \
+              --showlog
+
+            # TODO Check the sub-pipeline's status. `pipeline start` gives a 
+            # 0 return code even when the underlying tasks fail.
+        - name: ARGS
+          value:
+            - v4.5
+
+    - name: run-operator-test-pipeline-4-6
+      runAfter:
+        - build-bundle
+      taskRef:
+        name: tkn
+        kind: ClusterTask
+      when:
+        - input: $(tasks.validate.results.supports_ocp_4_6)
+          operator: in
+          values: ["true"]
+      params:
+        - <<: *testPipelineScript
+        - name: ARGS
+          value:
+            - v4.6
+
+    - name: run-operator-test-pipeline-4-7
+      runAfter:
+        - build-bundle
+      taskRef:
+        name: tkn
+        kind: ClusterTask
+      when:
+        - input: $(tasks.validate.results.supports_ocp_4_7)
+          operator: in
+          values: ["true"]
+      params:
+        - <<: *testPipelineScript
+        - name: ARGS
+          value:
+            - v4.7
+
+    - name: run-operator-test-pipeline-4-8
+      runAfter:
+        - build-bundle
+      taskRef:
+        name: tkn
+        kind: ClusterTask
+      when:
+        - input: $(tasks.validate.results.supports_ocp_4_8)
+          operator: in
+          values: ["true"]
+      params:
+        - <<: *testPipelineScript
+        - name: ARGS
+          value:
+            - v4.8
+
+  results:
+    - name: package_name
+      value: $(tasks.validate.results.package_name)
+    - name: bundle_version
+      value: $(tasks.validate.results.bundle_version)
+    - name: bundle_image
+      value: *bundleImage

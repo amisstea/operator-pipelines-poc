@@ -6,6 +6,7 @@ metadata:
 spec:
   params:
     - name: git_repo_url
+    - name: git_repo_name
     - name: git_revision
     - name: git_refspec
     - name: git_base_revision
@@ -14,6 +15,14 @@ spec:
     - name: github_pull_request_url
     - name: registry
       default: default-route-openshift-image-registry.apps-crc.testing
+    - name: s3_bucket
+      default: operator-pipeline-results
+    - name: aws_secret_name
+      default: aws-secret
+    - name: upload_results
+      default: "true"
+    - name: set_github_status
+      default: "true"
   workspaces:
     - name: pipeline
   tasks:
@@ -52,7 +61,7 @@ spec:
           workspace: pipeline
           subPath: src
 
-    - name: run-operator-test-pipeline
+    - name: run-operator-base-pipeline
       runAfter:
         - authorize
       taskRef:
@@ -61,7 +70,7 @@ spec:
       params:
         - name: SCRIPT
           value: |
-            set +xe
+            set -xe
 
             # TODO Is there a better way to setup the workspace?
             cat <<EOF >> volume-claim-template.yml
@@ -74,13 +83,17 @@ spec:
             EOF
 
             # TODO Propogate results from the pipelinerun here
-            tkn pipeline start operator-test-pipeline \
+            tkn pipeline start operator-base-pipeline \
               --param git_repo_url=$(params.git_repo_url) \
+              --param git_repo_name=$(params.git_repo_name) \
               --param git_revision=$(params.git_revision) \
-              --param registry=$(params.registry) \
               --param bundle_path=$(tasks.authorize.results.bundle_path) \
+              --param upload_results=$(params.upload_results) \
+              --param set_github_status=$(params.set_github_status) \
+              --param s3_bucket=$(params.s3_bucket) \
+              --param registry=$(params.registry) \
+              --param aws_secret_name=$(params.aws_secret_name) \
               --workspace name=pipeline,volumeClaimTemplateFile=volume-claim-template.yml \
-              --prefix-name "$(context.pipelineRun.name)-test" \
               --showlog
 
             # TODO Check the sub-pipeline's status. `pipeline start` gives a 
@@ -91,7 +104,7 @@ spec:
       taskRef:
         name: sleep
       runAfter:
-        - run-operator-test-pipeline
+        - run-operator-base-pipeline
       params:
         - name: time
           value: "1"

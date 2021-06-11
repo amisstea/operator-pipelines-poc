@@ -5,23 +5,35 @@ metadata:
   name: operator-cert-test
 spec:
   params:
-    - name: index_image
-    - name: redhat
-      description: Include tests which require access to Red Hat's internal
-        network.
-      default: "false"
-  results:
-    - name: status
-      description: passed, failed, errored, skipped, etc.
+    - name: package_name
+    - name: junit_xml_path
+    - name: junit_html_path
+    - name: namespace # TODO
+      default: ""
+    - name: kubeconfig # TODO
+      default: ""
   workspaces:
     - name: results
-      description: JUnit test results directory
+  results:
+    - name: state
   steps:
     - name: run-preflight-tests
-      image: registry.access.redhat.com/ubi8-minimal
-      workingDir: $(workspaces.results.path)
+      # TODO use an image with all the test suites and tools installed
+      image: quay.io/amisstea/operator-pipeline-tools:latest
       script: |
         #! /usr/bin/env bash
-        # TODO Run some actual tests. Treating this like a black box for now.
-        echo -n passed | tee $(results.status.path)
-        ls -alh
+        set -xe
+
+        # TODO Replace all this with operator tests
+        pytest --junitxml "$(workspaces.results.path)/$(params.junit_xml_path)" \
+               --html "$(workspaces.results.path)/$(params.junit_html_path)" \
+               --self-contained-html \
+               $TESTS_HOME
+
+        # Provide a github friendly overall state
+        if [[ "$?" -eq "0" ]]; then
+          STATE="success"
+        else
+          STATE="failure"
+        fi
+        echo -n $STATE > $(results.state.path)

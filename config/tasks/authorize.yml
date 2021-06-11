@@ -13,7 +13,7 @@ spec:
     - name: source
   steps:
     - name: verify-one-operator-bundle
-      image: registry.access.redhat.com/ubi8/python-38
+      image: quay.io/amisstea/operator-pipeline-tools:latest
       workingDir: $(workspaces.source.path)
       script: |
         #! /usr/bin/env bash
@@ -26,7 +26,7 @@ spec:
         fi
         echo -n $BUNDLE | tee $(results.bundle_path.path)
     - name: verify-username
-      image: registry.access.redhat.com/ubi8-minimal
+      image: quay.io/amisstea/operator-pipeline-tools:latest
       script: |
         #! /usr/bin/env bash
         set -xe

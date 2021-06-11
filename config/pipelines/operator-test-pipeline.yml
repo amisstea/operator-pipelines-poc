@@ -5,228 +5,128 @@ metadata:
   name: operator-test-pipeline
 spec:
   params:
-    - name: git_repo_url
-    - name: git_revision
-    - name: bundle_path
+    - name: package_name
+    - name: bundle_image
+    - name: ocp_version
+    - name: git_commit
+    - name: git_repo_name
     - name: registry
-      default: default-route-openshift-image-registry.apps-crc.testing
+    - name: s3_bucket
+    - name: upload_results
+    - name: set_github_status
   workspaces:
     - name: pipeline
+    - name: aws-secrets
+      optional: true
   tasks:
-    - name: checkout
+    - name: set-github-status-pending
       taskRef:
-        name: git-clone
-        kind: ClusterTask
+        name: github-set-status
+      when:
+        - input: $(params.set_github_status)
+          operator: in
+          values: ["true"]
       params:
-        - name: url
-          value: $(params.git_repo_url)
-        - name: revision
-          value: $(params.git_revision)
-      workspaces:
-        - name: output
-          workspace: pipeline
-          subPath: src
-
-    - name: validate
-      runAfter:
-        - checkout
-      taskRef:
-        name: operator-cert-validate
-      params:
-        - name: bundle_path
-          value: "$(params.bundle_path)"
-      workspaces:
-        - name: source
-          workspace: pipeline
-          subPath: src
-
-    - name: build-bundle
-      runAfter:
-        - validate
-      taskRef:
-        # TODO: The bundle image build needs to generate a Dockerfile first
-        # from the source using opm commands. It's a security risk to allow
-        # user specified Dockerfiles as additional malicious steps could be
-        # inserted and be near-impossible to guard against.
-        #
-        # Alternatively, should we instead validate that opm generates the same
-        # output as the user submitted Dockerfile? The advantage to this is
-        # explicit Dockerfiles that don't need to be committed back to SCM by
-        # this pipeline. It's also more opaque to the user which could lead to
-        # better usability.
-        name: buildah
-        kind: ClusterTask
-      params:
-        - name: IMAGE
-          value: &bundleImage "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)"
+        - name: REPO_FULL_NAME
+          value: $(params.git_repo_name)
+        - name: SHA
+          value: $(params.git_commit)
+        - name: DESCRIPTION
+          value: "OpenShift $(params.ocp_version) testing started."
+        - name: STATE
+          value: pending
+        - name: TARGET_URL
+          value: ""
         - name: CONTEXT
-          value: "$(params.bundle_path)"
-        # TODO TLS verification disabled for demo purposes
-        - &buildahNoTlsVerify
-          name: TLSVERIFY
-          value: "false"
-      workspaces:
-        - name: source
-          workspace: pipeline
-          subPath: src
+          value: "operator-test/$(params.ocp_version)"
 
-    - &generateIndex
-      name: generate-index-4-5
-      runAfter:
-        - build-bundle
+    - name: generate-index
       taskRef:
         name: generate-index
       params:
         - name: bundle_image
-          value: *bundleImage
-      when:
-        - input: $(tasks.validate.results.supports_ocp_4_5)
-          operator: in
-          values: ["true"]
+          value: $(params.bundle_image)
       workspaces:
         - name: output
           workspace: pipeline
-          subPath: index-4.5
+          subPath: index
 
-    - &buildIndex
-      name: build-index-4-5
+    - name: build-index
       runAfter:
-        - generate-index-4-5
+        - generate-index
       taskRef:
         name: buildah
         kind: ClusterTask
       params:
         - name: IMAGE
-          value: &indexImage45 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-5:$(tasks.validate.results.bundle_version)"
+          value: "$(params.registry)/$(context.pipelineRun.namespace)/$(params.package_name)-test-index:$(params.ocp_version)"
         - name: CONTEXT
-          value: "index-4.5"
-        - <<: *buildahNoTlsVerify
+          value: index
+        - name: TLSVERIFY
+          value: "false"
       workspaces:
         - name: source
           workspace: pipeline
 
-    - name: test-4-5
+    - name: test
       taskRef:
         name: operator-cert-test
       runAfter:
-        - build-index-4-5
+        - build-index
       workspaces:
         - name: results
           workspace: pipeline
-          subPath: test-results-4.5
+          subPath: results
       params:
-        - name: index_image
-          value: *indexImage45
+        - name: package_name
+          value: $(params.package_name)
+        - name: junit_xml_path
+          value: "$(context.pipelineRun.name).xml"
+        - name: junit_html_path
+          value: "$(context.pipelineRun.name).html"
 
-    - <<: *generateIndex
-      name: generate-index-4-6
+  finally:
+    # The aws-cli task from Tekton Hub is not used because we need the task to
+    # emit results so they can be emitted by this pipeline.
+    - name: upload-results
+      taskRef:
+        name: aws-cli
+      workspaces:
+        - name: secrets
+          workspace: aws-secrets
+        - name: source
+          workspace: pipeline
+          subPath: results
       when:
-        - input: $(tasks.validate.results.supports_ocp_4_6)
+        - input: $(params.upload_results)
           operator: in
           values: ["true"]
-      workspaces:
-        - name: output
-          workspace: pipeline
-          subPath: index-4.6
-
-    - <<: *buildIndex
-      name: build-index-4-6
-      runAfter:
-        - generate-index-4-6
       params:
-        - name: IMAGE
-          value: &indexImage46 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-6:$(tasks.validate.results.bundle_version)"
-        - name: CONTEXT
-          value: "index-4.6"
-        - <<: *buildahNoTlsVerify
+        - name: SCRIPT
+          value: |
+            aws s3 cp $(workspaces.source.path)/$(context.pipelineRun.name).xml \
+                s3://$(params.s3_bucket)/$(context.pipelineRun.name).xml
+            aws s3 cp $(workspaces.source.path)/$(context.pipelineRun.name).html \
+                s3://$(params.s3_bucket)/$(context.pipelineRun.name).html
 
-    - name: test-4-6
+    - name: set-github-status
       taskRef:
-        name: operator-cert-test
-      runAfter:
-        - build-index-4-6
-      workspaces:
-        - name: results
-          workspace: pipeline
-          subPath: test-results-4.6
-      params:
-        - name: index_image
-          value: *indexImage46
-
-    - <<: *generateIndex
-      name: generate-index-4-7
+        name: github-set-status
       when:
-        - input: $(tasks.validate.results.supports_ocp_4_7)
+        - input: $(params.set_github_status)
           operator: in
           values: ["true"]
-      workspaces:
-        - name: output
-          workspace: pipeline
-          subPath: index-4.7
-
-    - <<: *buildIndex
-      name: build-index-4-7
-      runAfter:
-        - generate-index-4-7
       params:
-        - name: IMAGE
-          value: &indexImage47 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-7:$(tasks.validate.results.bundle_version)"
+        - name: REPO_FULL_NAME
+          value: $(params.git_repo_name)
+        - name: SHA
+          value: $(params.git_commit)
+        - name: DESCRIPTION
+          value: "OpenShift $(params.ocp_version) testing complete."
+        - name: STATE
+          value: $(tasks.test.results.state)
+        - name: TARGET_URL
+          value: "https://$(params.s3_bucket).s3.amazonaws.com/$(context.pipelineRun.name).html"
         - name: CONTEXT
-          value: "index-4.7"
-        - <<: *buildahNoTlsVerify
+          value: "operator-test/$(params.ocp_version)"
 
-    - name: test-4-7
-      taskRef:
-        name: operator-cert-test
-      runAfter:
-        - build-index-4-7
-      workspaces:
-        - name: results
-          workspace: pipeline
-          subPath: test-results-4.7
-      params:
-        - name: index_image
-          value: *indexImage47
-
-    - <<: *generateIndex
-      name: generate-index-4-8
-      when:
-        - input: $(tasks.validate.results.supports_ocp_4_8)
-          operator: in
-          values: ["true"]
-      workspaces:
-        - name: output
-          workspace: pipeline
-          subPath: index-4.8
-
-    - <<: *buildIndex
-      name: build-index-4-8
-      runAfter:
-        - generate-index-4-8
-      params:
-        - name: IMAGE
-          value: &indexImage48 "$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)-test-index-4-8:$(tasks.validate.results.bundle_version)"
-        - name: CONTEXT
-          value: "index-4.8"
-        - <<: *buildahNoTlsVerify
-
-    - name: test-4-8
-      taskRef:
-        name: operator-cert-test
-      runAfter:
-        - build-index-4-8
-      workspaces:
-        - name: results
-          workspace: pipeline
-          subPath: test-results-4.8
-      params:
-        - name: index_image
-          value: *indexImage48
-
-  results:
-    - name: package_name
-      value: $(tasks.validate.results.package_name)
-    - name: bundle_version
-      value: $(tasks.validate.results.bundle_version)
-    - name: bundle_image
-      value: &bundleImage
