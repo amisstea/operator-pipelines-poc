@@ -1,7 +1,3 @@
-![Successful cert pipeline run](img/cert-pipelinerun-details.png)
-
-![Successful test pipeline run](img/test-pipelinerun-details.png)
-
 # operator-pipelines-poc
 Proof of Concept for an Operator Certification Pipeline using OpenShift Pipelines.
 
@@ -68,7 +64,7 @@ tkn pipeline start operator-base-pipeline \
 Ex:
 
 ```bash
-tkn pipeline start operator-test-pipeline \
+tkn pipeline start operator-base-pipeline \
   --param git_repo_url=https://github.com/amisstea/community-operators.git \
   --param git_repo_name=amisstea/community-operators \
   --param git_revision=test-branch \
@@ -78,6 +74,8 @@ tkn pipeline start operator-test-pipeline \
 ```
 
 That's it! A `PipelineRun` should now be running.
+
+![Successful base pipeline run](img/base-pipelinerun-details.png)
 
 ## Running the Red Hat Certification Pipeline
 
@@ -132,7 +130,11 @@ oc create secret generic github --from-literal token="[TOKEN]"
 
 5. Submit a pull request from your branch to the `master` branch of your
    forked `community-operators` repo. This should trigger the creation of a
-   `PipelineRun`.
+   `PipelineRun`. GitHub status checks should eventually appear on the pull
+   request.
+
+![Successful cert pipeline run](img/cert-pipelinerun-details.png)
+![Pending status checks](img/pending-status-checks.png)
 
 ## Limitations
 
@@ -144,8 +146,7 @@ Tekton does not yet support
 #### Workaround
 
 The `tkn` `ClusterTask` can be used to start pipelines and monitor their logs.
-An example of this can be found in the `run-operator-test-pipeline` pipeline
-task. A means for propagating results from an embedded pipeline into a pipeline
+A means for propagating results from an embedded pipeline into a pipeline
 which wraps it may need more research. It may need to be solved with a more
 advanced feature like `CustomTasks` which is still in alpha and a
 [non-trivial](https://github.com/tektoncd/community/blob/main/teps/0002-custom-tasks.md#drawbacks)
