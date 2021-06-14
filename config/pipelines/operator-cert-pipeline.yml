@@ -83,7 +83,7 @@ spec:
             EOF
 
             # TODO Propogate results from the pipelinerun here
-            tkn pipeline start operator-base-pipeline \
+            TKN_OUT=$(tkn pipeline start operator-base-pipeline \
               --param git_repo_url=$(params.git_repo_url) \
               --param git_repo_name=$(params.git_repo_name) \
               --param git_revision=$(params.git_revision) \
@@ -93,12 +93,17 @@ spec:
               --param s3_bucket=$(params.s3_bucket) \
               --param registry=$(params.registry) \
               --param aws_secret_name=$(params.aws_secret_name) \
-              --workspace name=pipeline,volumeClaimTemplateFile=volume-claim-template.yml \
-              --showlog
+              --workspace name=pipeline,volumeClaimTemplateFile=volume-claim-template.yml
+            )
 
-            # TODO Check the sub-pipeline's status. `pipeline start` gives a 
-            # 0 return code even when the underlying tasks fail.
+            PR=$(echo $TKN_OUT | grep "started:" | awk '{print $3}')
+            tkn pr logs $PR --follow
+            SUCCEEDED=$(tkn pr describe $PR -o jsonpath='{.status.conditions[?(@.type == "Succeeded")].status}')
 
+            if [[ "$SUCCEEDED" != "True" ]]; then
+              echo "$PR did not succeed"
+              exit 1
+            fi
     # TODO - placeholder
     - name: verify
       taskRef:

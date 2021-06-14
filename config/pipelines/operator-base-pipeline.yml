@@ -111,9 +111,11 @@ spec:
               AWS_SECRETS_WORKSPACE="--workspace name=aws-secrets,secret=$(params.aws_secret_name)"
             fi
 
-            tkn pipeline start operator-test-pipeline \
+            REPO_PATH="$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name)"
+
+            TKN_OUT=$(tkn pipeline start operator-test-pipeline \
               --param package_name=$(tasks.validate.results.package_name) \
-              --param bundle_image="$(params.registry)/$(context.pipelineRun.namespace)/$(tasks.validate.results.package_name):$(tasks.validate.results.bundle_version)" \
+              --param bundle_image="$REPO_PATH:$(tasks.validate.results.bundle_version)" \
               --param ocp_version="$1" \
               --param registry=$(params.registry) \
               --param git_commit=$(tasks.checkout.results.commit) \
@@ -122,11 +124,17 @@ spec:
               --param set_github_status=$(params.set_github_status) \
               --param s3_bucket=$(params.s3_bucket) \
               --workspace name=pipeline,volumeClaimTemplateFile=volume-claim-template.yml \
-              $AWS_SECRETS_WORKSPACE \
-              --showlog
+              $AWS_SECRETS_WORKSPACE
+            )
 
-            # TODO Check the sub-pipeline's status. `pipeline start` gives a 
-            # 0 return code even when the underlying tasks fail.
+            PR=$(echo $TKN_OUT | grep "started:" | awk '{print $3}')
+            tkn pr logs $PR --follow
+            SUCCEEDED=$(tkn pr describe $PR -o jsonpath='{.status.conditions[?(@.type == "Succeeded")].status}')
+
+            if [[ "$SUCCEEDED" != "True" ]]; then
+              echo "$PR did not succeed"
+              exit 1
+            fi
         - name: ARGS
           value:
             - v4.5
