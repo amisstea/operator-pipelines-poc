@@ -12,6 +12,8 @@ spec:
       default: ""
     - name: kubeconfig # TODO
       default: ""
+    - name: test_params
+      default: ""
   workspaces:
     - name: results
   results:
@@ -25,9 +27,11 @@ spec:
         set -xe
 
         # TODO Replace all this with operator tests
-        pytest --junitxml "$(workspaces.results.path)/$(params.junit_xml_path)" \
+        pytest -vvv \
+               --junitxml "$(workspaces.results.path)/$(params.junit_xml_path)" \
                --html "$(workspaces.results.path)/$(params.junit_html_path)" \
                --self-contained-html \
+               "$(params.test_params)" \
                $TESTS_HOME
 
         # Provide a github friendly overall state
