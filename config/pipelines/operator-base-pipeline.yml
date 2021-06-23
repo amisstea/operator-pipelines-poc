@@ -20,7 +20,7 @@ spec:
     - name: set_github_status
       default: "false"
     - name: test_params
-      default: "not failure"
+      default: "-m not failure"
   workspaces:
     - name: pipeline
   tasks:
@@ -125,7 +125,7 @@ spec:
               --param upload_results=$(params.upload_results) \
               --param set_github_status=$(params.set_github_status) \
               --param s3_bucket=$(params.s3_bucket) \
-              --param test_params=$(params.test_params) \
+              --param test_params="$(params.test_params)" \
               --workspace name=pipeline,volumeClaimTemplateFile=volume-claim-template.yml \
               $AWS_SECRETS_WORKSPACE
             )

@@ -86,7 +86,7 @@ spec:
         - name: junit_html_path
           value: "$(context.pipelineRun.name).html"
         - name: test_params
-          value: $(params.test_params)
+          value: "$(params.test_params)"
 
   finally:
     # The aws-cli task from Tekton Hub is not used because we need the task to
